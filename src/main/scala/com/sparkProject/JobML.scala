@@ -56,7 +56,7 @@ object JobML {
     val dummy = udf({ (l: String) => {
       if (l == "CONFIRMED") 0.0
       else if (l == "FALSE POSITIVE") 1.0
-      else 0.0
+      else 0.0 // En réalité, il n'y a que CONFIRMED et FALSE POSITIVE dans le dataset.
     }
     })
 
@@ -72,10 +72,7 @@ object JobML {
       .setOutputCol("featuresSparse")
 
     // Transformation
-    val cumulative_forML_features = assembler.transform(cumulative_forML)
-
-    // Sélection de label et featuresSparses
-    val parsedDatatemp = cumulative_forML_features.select("label", "featuresSparse")
+    val cumulative_forML_vecassembler = assembler.transform(cumulative_forML)
 
     // L'output de VectorAssembler est aléatoirement de type SparseVectors ou de type DenseVectors (sous-classes de Vector).
     // Pour StandardScaler, l'input doit obligatoirement être un DenseVector.
@@ -86,7 +83,7 @@ object JobML {
     }
     })
 
-    val parsedData = parsedDatatemp.withColumn("features", sparseToDense($"featuresSparse")).drop("featuresSparse")
+    val finalData = cumulative_forML_vecassembler.select("label", "featuresSparse").withColumn("features", sparseToDense($"featuresSparse")).drop("featuresSparse")
 
     // Régression avec ML
 
@@ -97,15 +94,14 @@ object JobML {
                 .setOutputCol("scaledFeatures")
                 .setWithStd(true)
                 .setWithMean(true)
-                .fit(parsedData)
+                .fit(finalData)
 
-    val parsedDataTemp = scaler.transform(parsedData)
-    val parsedDataCR = parsedDataTemp.drop("features")
+    val finalDataCR = scaler.transform(finalData).drop("features")
 
     // Split du dataset entre entraînement et test
-    val datasplit = parsedDataCR.randomSplit(Array(0.9, 0.1), seed = 12345)
-    val training = datasplit(0)
-    val test = datasplit(1)
+    val finalDataSplit = finalDataCR.randomSplit(Array(0.9, 0.1), seed = 12345)
+    val training = finalDataSplit(0)
+    val test = finalDataSplit(1)
 
     // Initialisation de la régression logistique
     println("Début régression")
@@ -154,7 +150,7 @@ object JobML {
       case _ => println(tooManyArguments); regParamArrayExpDefault;
     }
 
-    // Construction de la grille à partir des hyperparamètres (par défaut ou fournis par l'utilisateur
+    // Construction de la grille à partir des hyperparamètres (par défaut ou fournis par l'utilisateur)
     val paramGrid = new ParamGridBuilder()
       .addGrid(lr.regParam, regParamArrayExp)
       .build()
