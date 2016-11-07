@@ -88,41 +88,7 @@ object JobML {
 
     val parsedData = parsedDatatemp.withColumn("features", sparseToDense($"featuresSparse")).drop("featuresSparse")
 
-    // Régression avec MLLIB (deprecated)
-    /*
-    // import org.apache.spark.mllib.linalg.Vectors
-    // import org.apache.spark.mllib.linalg.Vector
-    // import org.apache.spark.mllib.regression.LabeledPoint
-    // import org.apache.spark.mllib.regression.LinearRegressionModel
-    // import org.apache.spark.mllib.regression.LinearRegressionWithSGD
-    // import org.apache.spark.mllib.feature.{StandardScaler, StandardScalerModel}
-    print("Transformation en RDD\n")
-    val parsedDataLPRDD = parsedDataLP.rdd
-    parsedDataLPRDD.toDF().show(5)
-
-    print("Fit d'un standard scaler\n")
-    val scaler = new StandardScaler(withMean = true, withStd = true).fit(parsedDataLPRDD.map(x => x.features))
-
-    print("Transformation des features\n")
-    val parsedDataLPRDD_post = parsedDataLPRDD.map(x => LabeledPoint(x.label, scaler.transform(x.features)))
-    parsedDataLPRDD_post.toDF().show(5)
-
-    // Building the model
-    val numIterations = 100
-    val stepSize = 0.00000001
-    val model = LinearRegressionWithSGD.train(parsedDataLPRDD_post, numIterations, stepSize)
-
-    // Evaluate model on training examples and compute training error
-    val valuesAndPreds = parsedDataLPRDD_post.map { point =>
-      val prediction = model.predict(point.features)
-      (point.label, prediction)
-    }
-    val MSE = valuesAndPreds.map{ case(v, p) => math.pow((v - p), 2) }.mean()
-    println("training Mean Squared Error = " + MSE)
-    }
-    */
-
-    // Régression avec ML (recommandé)
+    // Régression avec ML
 
     // Centrer-réduire les données
     print("Fit d'un standard scaler\n")
@@ -136,12 +102,12 @@ object JobML {
     val parsedDataTemp = scaler.transform(parsedData)
     val parsedDataCR = parsedDataTemp.drop("features")
 
-    // Split dataset between train and test
+    // Split du dataset entre entraînement et test
     val datasplit = parsedDataCR.randomSplit(Array(0.9, 0.1), seed = 12345)
     val training = datasplit(0)
     val test = datasplit(1)
 
-    // Logistic Regression initialisation
+    // Initialisation de la régression logistique
     println("Début régression")
     val lr = new LogisticRegression()
       .setElasticNetParam(1.0)  // L1-norm regularization : LASSO
@@ -152,8 +118,7 @@ object JobML {
       .setTol(1.0e-5)  // stop criterion of the algorithm based on its convergence
       .setMaxIter(300)  // a security stop criterion to avoid infinite loops
 
-    // Parameters grid definition
-
+    // Grille de paramètres à tester
     println("Début construction de grille de regParam")
 
     // Valeur d'hyperparamètres par défaut
@@ -163,7 +128,7 @@ object JobML {
     // On teste si l'utilisateur a passé en ligne de commande un fichier vers une liste d'hyperparamètres à tester.
     // Si ce n'est pas le cas ou bien s'il y a un problème pour lire les hyperparamètres du fichier, les valeurs par défaut sont utilisées.
     val regParamArrayExp: Array[Double] = args.length match {
-      case 0 => println(nohyperParameterFile) ; regParamArrayExpDefault
+      case 0 => println(nohyperParameterFile); regParamArrayExpDefault;
       case 1 => {
         val hyperparametersFilePath: String = args(0)
         val source = scala.io.Source.fromFile(hyperparametersFilePath)
@@ -189,7 +154,7 @@ object JobML {
       case _ => println(tooManyArguments); regParamArrayExpDefault;
     }
 
-    // Construction de la grille à partir des hyperparamètres
+    // Construction de la grille à partir des hyperparamètres (par défaut ou fournis par l'utilisateur
     val paramGrid = new ParamGridBuilder()
       .addGrid(lr.regParam, regParamArrayExp)
       .build()
