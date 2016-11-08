@@ -30,11 +30,14 @@ object JobML {
 
   def main(args: Array[String]): Unit = {
 
-    // Récupération des arguments
+    // Récupération des arguments de la ligne de commande :
+    //          argsParsed(0) est le type d'input file,
+    //          argsParsed(1) le chemin vers l'input file,
+    //          argsParsed(2) le chemin vers le fichier d'hyperparamètres ou "" si l'utilisateur ne l'a pas spécifié (cet argument étant optionnel)
     val argsParsed = args match {
-      case (Array("csv" | "parquet", s)) => Array(args(0), args(1), "")
-      case (Array("csv" | "parquet", s, t)) => args
-      case (_) => throw new IllegalArgumentException(usage);
+      case (Array("csv" | "parquet", _)) => Array(args(0), args(1), "") // Cas où l'utilisateur n'a pas donné de fichier d'hyperparamètres en argument
+      case (Array("csv" | "parquet", _, _)) => args // Cas où l'utilisateur a donné un fichier d'hyperparamètres en argument
+      case (_) => throw new IllegalArgumentException(usage); // Cas où l'utilisateur n'a pas spécifié "csv" ou "parquet" en premier argument, ou a donné plus de 3 arguments
     }
 
     // SparkSession configuration
