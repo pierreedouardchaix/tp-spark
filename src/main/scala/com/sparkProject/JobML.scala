@@ -31,6 +31,13 @@ object JobML {
 
   def main(args: Array[String]): Unit = {
 
+    // Récupération des arguments
+    val argsParsed = args match {
+      case (Array("csv" | "parquet", s)) => Array(args(0), args(1), "")
+      case (Array("csv" | "parquet", s, t)) => args
+      case (_) => throw new IllegalArgumentException(usage);
+    }
+
     // SparkSession configuration
     val spark = SparkSession
       .builder
@@ -43,14 +50,16 @@ object JobML {
 
     /////////////// Import du fichier créé dans le TP précédent
     // Choix 1 : Import depuis le fichier exporté à l'étape précédente
-    // val reader: DataFrameReader = spark.read
-    // val cumulative_reader = reader.option("sep",",").option("header",true).option("comment","#").option("inferSchema", "true")
-    // val cumulativeFilePath = ???
-    // val cumulative = cumulative_reader.csv(cumulativeFilePath)
-
-    // Choix 2 : Import depuis le fichier parquet
-    val parquetFilePath = "cleanedDataFrame.parquet"
-    val cumulative = spark.read.parquet(parquetFilePath)
+    val cumulative = argsParsed(0) match {
+      case("csv") => {
+        val reader: DataFrameReader = spark.read
+        val cumulative_reader = reader.option("sep",",").option("header",true).option("comment","#").option("inferSchema", "true")
+        cumulative_reader.csv(args(1))
+      }
+      case("parquet") => {
+        spark.read.parquet(args(1))
+      }
+    }
 
     // UDF pour créer la colonne de label
     val dummy = udf({ (l: String) => {
@@ -121,36 +130,34 @@ object JobML {
     val regParamArrayDefault =  Array(-6.0, -5.5, -5, -4.5, -4, -3.5, -3, -2.5, -2, -1.5, -1, -0.5, -0.0)
     val regParamArrayExpDefault = regParamArrayDefault.map({ x: Double => math.pow(10.0, x) })
 
+    // Construction de la grille à partir des hyperparamètres (par défaut ou fournis par l'utilisateur)
+
     // On teste si l'utilisateur a passé en ligne de commande un fichier vers une liste d'hyperparamètres à tester.
     // Si ce n'est pas le cas ou bien s'il y a un problème pour lire les hyperparamètres du fichier, les valeurs par défaut sont utilisées.
-    val regParamArrayExp: Array[Double] = args.length match {
-      case 0 => println(nohyperParameterFile); regParamArrayExpDefault;
-      case 1 => {
-        val hyperparametersFilePath: String = args(0)
+    val regParamArrayExp: Array[Double] = argsParsed(2) match {
+      case "" => println(nohyperParameterFile); regParamArrayExpDefault;
+      case _ => {
+        val hyperparametersFilePath: String = argsParsed(2)
         val source = scala.io.Source.fromFile(hyperparametersFilePath)
         val lines = try source.mkString.split("\n") finally source.close()
         lines.length match {
           case 1 => {
             try {
               val regParamArrayExpUser: Array[Double] = lines(0).split(";").map({s: String => s.toDouble})
-
               regParamArrayExpUser.length match {
                 case 0 => println(notEnoughParameters); regParamArrayExpDefault;
                 case _ => println(hyperParametersOK); regParamArrayExpUser;
               }
-
             }
             catch {
-                case nfe: java.lang.NumberFormatException => println(hyperParametersNotOK); regParamArrayExpDefault;
+              case nfe: java.lang.NumberFormatException => println(hyperParametersNotOK); regParamArrayExpDefault;
             }
           }
           case _ => println(tooManyLines); regParamArrayExpDefault;
         }
       }
-      case _ => println(tooManyArguments); regParamArrayExpDefault;
     }
 
-    // Construction de la grille à partir des hyperparamètres (par défaut ou fournis par l'utilisateur)
     val paramGrid = new ParamGridBuilder()
       .addGrid(lr.regParam, regParamArrayExp)
       .build()
@@ -199,7 +206,12 @@ object JobML {
     val sameModel = LogisticRegressionModel.load("target/tmp/scalaLinearRegressionWithSGDModel")
   }
 
-  // Messages console lors de la lecture du fichier d'hyperparamètres
+  // Messages console lors de la lecture des arguments (fichier input et fichier d'hyperparamètres)
+
+  val usage =
+    """
+      Arguments à fournir : [type de fichier d'input : csv ou parquet] [lien vers fichier input] [lien vers fichier d'hyperparamètres (optionnel)]
+    """
 
   val nohyperParameterFile =
     """
@@ -207,26 +219,21 @@ object JobML {
       Ajouter le chemin vers un fichier d'hyperparamètres (sur une ligne, séparateur décimal ".", séparateur de champ ";") en argument de la commande pour les prendre en compte.
     """
 
-  val tooManyArguments = """
-    Attention : Ne passer qu'un seul argument externe (nom du fichier contenant les hyperparamètres à tester)
-    Les arguments ont été ignorés et les valeurs par défaut seront utilisées.
-              """
-
   val tooManyLines =
     """
       Attention : le fichier d'hyperparamètres contient plusieurs lignes. Réessayer avec un fichier contenant une seule ligne.
-        Le fichier a été ignoré et les valeurs par défaut seront utilisées.
+      Le fichier a été ignoré et les valeurs par défaut seront utilisées.
     """
 
   val notEnoughParameters =
     """
       Attention : il n'y pas assez de paramètres à tester dans le fichier. Réessayer avec un fichier contenant au moins 1 paramètre (ou plusieurs paramètres séparés par ';').
-      |Le fichier a été ignoré et les valeurs par défaut seront utilisées.
+      Le fichier a été ignoré et les valeurs par défaut seront utilisées.
     """
 
   val hyperParametersOK =
     """
-        Lecture des hyperparamètres OK.
+        Lecture des hyperparamètres fournis par l'utilisateur : OK.
     """
 
   val hyperParametersNotOK =
