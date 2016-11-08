@@ -47,8 +47,7 @@ object JobML {
     sc.setLogLevel("WARN") // Pour afficher moins en console
     import spark.implicits._
 
-    /////////////// Import du fichier créé dans le TP précédent
-    // Choix 1 : Import depuis le fichier exporté à l'étape précédente
+    // Import du fichier créé dans le TP précédent (csv ou parquet)
     val cumulative = argsParsed(0) match {
       case("csv") => {
         spark.read.option("sep",",").option("header",true).option("comment","#").option("inferSchema", "true").csv(args(1))
@@ -128,7 +127,6 @@ object JobML {
     val regParamArrayExpDefault = regParamArrayDefault.map({ x: Double => math.pow(10.0, x) })
 
     // Construction de la grille à partir des hyperparamètres (par défaut ou fournis par l'utilisateur)
-
     // On teste si l'utilisateur a passé en ligne de commande un fichier vers une liste d'hyperparamètres à tester.
     // Si ce n'est pas le cas ou bien s'il y a un problème pour lire les hyperparamètres du fichier, les valeurs par défaut sont utilisées.
     val regParamArrayExp: Array[Double] = argsParsed(2) match {
