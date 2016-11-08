@@ -1,7 +1,6 @@
 package com.sparkProject
 
 import org.apache.spark.sql.DataFrameReader
-import org.apache.spark.sql.DataFrameWriter
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.SparkSession
@@ -52,9 +51,7 @@ object JobML {
     // Choix 1 : Import depuis le fichier exporté à l'étape précédente
     val cumulative = argsParsed(0) match {
       case("csv") => {
-        val reader: DataFrameReader = spark.read
-        val cumulative_reader = reader.option("sep",",").option("header",true).option("comment","#").option("inferSchema", "true")
-        cumulative_reader.csv(args(1))
+        spark.read.option("sep",",").option("header",true).option("comment","#").option("inferSchema", "true").csv(args(1))
       }
       case("parquet") => {
         spark.read.parquet(args(1))
